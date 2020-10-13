@@ -22,7 +22,7 @@ void *myThreadFun(void *vargp)
     while(count < MAXNUM){
       pthread_mutex_lock(&mymutex);
       if(++count == MAXNUM) {
-        if(count == MAXNUM) printf("Thread %ld chegou ao número.\n", (long) vargp);
+        printf("Thread %ld chegou ao número.\n", (long) vargp);
         pthread_mutex_unlock(&mymutex);
         pthread_exit(NULL);
       }
