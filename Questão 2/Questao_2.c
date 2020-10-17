@@ -1,98 +1,164 @@
 #include <stdio.h> 
 #include <stdlib.h> 
-#include <unistd.h> 
-#include <pthread.h> 
-#include <string.h>
+#include <pthread.h>
+#include <string.h> 
 
 char colores[][7] = {"\e[40m", "\e[41m",
 "\e[42m", "\e[43m", "\e[44m", "\e[45m", "\e[46m",
 "\e[47m"};
 
-char **tela;
+pthread_mutex_t *mutexes;
+pthread_t *threads;
 
-pthread_mutex_t *mymutex;
+typedef struct {
+    int linha;
+    char *text;
+} msg;
 
-int L, N; //L = linhas totais, N = quantos arquivos
+typedef struct {
+    int size;
+    msg *vetMsg;
+} theMsg;
 
-typedef struct{
-  int linha;
-  char msg[50];
-} insertMsg;
+int *tamLinhasArq;
+int L;
+msg** matrixMsg;
+msg *tela;
 
+void *func(void *cmd) {
+    //printf("oi");
+    theMsg command = *((theMsg *)cmd);
+    //printf("command.size=%d", command.size);
+    int i;
+    for(i=0; i<command.size; i++) {
+        pthread_mutex_lock(&mutexes[(command.vetMsg[i].linha)-1]);
+        tela[(command.vetMsg[i].linha)-1].text = (char *) malloc(strlen(command.vetMsg[i].text));
+        strcpy(tela[(command.vetMsg[i].linha)-1].text, command.vetMsg[i].text);
+        //printf("tela.linha = %d e tela.text = %s\n", tela[(command.vetMsg[i].linha)-1].linha, tela[(command.vetMsg[i].linha)-1].text);
+        printf("command.size=%d\n", command.size);
+        pthread_mutex_unlock(&mutexes[(command.vetMsg[i].linha)-1]);
 
-// Função pra executar todas as threads 
-void *myThreadFun(void *vargp) 
-{ 
-  insertMsg cmd= *((insertMsg*) vargp);
-
-  pthread_mutex_lock((mymutex+cmd.linha-1));
-
-  tela[(cmd.linha)-1] = (char*) malloc(strlen(cmd.msg));
-  strcpy(tela[(cmd.linha)-1], cmd.msg);
-
-  pthread_mutex_unlock((mymutex+cmd.linha-1));
-
-  return NULL;
-} 
-
-void createThread(int linha, char* texto,pthread_t* thread){
-  insertMsg* cmd = (insertMsg *) malloc(sizeof(insertMsg));
-  cmd->linha=linha;
-  strcpy((cmd->msg), texto);
-
-  int resp = pthread_create(thread, NULL, myThreadFun,(void *) cmd);
-  if(resp){
-        printf("Erro na criação de thread!\n");
-        return;
-  }
-
+    }
+    //pthread_exit(NULL);
 }
 
-int main() {
+void printLinhaTela(int index) {
+    printf("%d", tela[index].linha);
+    printf("%s", colores[index]);        
+    printf("%s\n", tela[index].text);
+    printf("\e[0m");
+}
 
-    printf("Digite o numero de arquivos e linhas: ");
-    scanf("%d %d", &N, &L);
+void init(int L, int qtdThreads) {
+    threads = (pthread_t *) malloc(qtdThreads*sizeof(pthread_t));
+    mutexes = (pthread_mutex_t *) malloc(L*sizeof(pthread_mutex_t));
+    tela = (msg *) malloc(L*sizeof(msg));
 
-    pthread_t *thread = (pthread_t *) malloc(L*sizeof(pthread_t));
-    tela = (char**) malloc(L*sizeof(char*));
-    mymutex = (pthread_mutex_t *) malloc(L*sizeof(pthread_mutex_t));
+    int i;
+    for(i=0; i<L; i++) {
+        tela[i].linha = i;
+        tela[i].text = (char *) malloc(6);
+        strcpy(tela[i].text, "undef");
+        printLinhaTela(i);
+        pthread_mutex_init(&mutexes[i], NULL);
+    }    
+}
 
-    for (int i = 0; i < L; i++) {
-        tela[i] = "undef"; // random
-        pthread_mutex_init(&mymutex[i], NULL);
-    };
+void leArquivos(int *n) {
+    int i;
+    printf("Digite o numero de arquivos: ");
+    scanf("%d", n);
 
-    int count = 0; //contas threads
+    matrixMsg = (msg **) malloc((*n)*sizeof(msg *));
+    tamLinhasArq = (int *) malloc((*n)*sizeof(int));
 
-    for(int i = 0; i < N; i++){
+    for(i=0; i< (*n); i++) {
         char str[50];
-        printf("Digite o nome do arquivo com sua extensão (.txt): ");
+        printf("Digite o nome do arquivo no formato *.txt: ");
         scanf(" %[^\n]", str);
         FILE *arq = fopen(str, "r");
-        if(arq == NULL){
-            printf("ERRO\n");
+        if(arq == NULL) {
+            printf("ERRO ao criar arquivo %d", i);
             exit(-1);
         }
 
         int linha;
-        char mensagem[100];
-
-        while(fscanf(arq, "%d\n %[^\n]", &linha, mensagem) != EOF){
-            createThread(linha, mensagem, &(thread[count++]));
+        char text[100];
+        int j=0;
+        matrixMsg[i] = NULL;
+        tamLinhasArq[i] = 0;
+        while(fscanf(arq, "%d %[^\n]", &linha, text) != EOF) {
+            matrixMsg[i] = (msg *) realloc(matrixMsg[i], (1+j)*sizeof(msg));
+            matrixMsg[i][j].linha = linha;
+            matrixMsg[i][j].text = (char *) malloc(strlen(text));
+            strcpy(matrixMsg[i][j].text, text);
+            //printf("%d-%s ", matrixMsg[i][j].linha, matrixMsg[i][j].text);
+            j++;
+            tamLinhasArq[i]++;
         }
-
-        int i;
-        for(i = 0; i < L; i++){
-            printf("%s", colores[i%8]);
-            printf("%s\n",tela[i]);
-            printf("\e[0m");
-        }
-
+        printf("tam *msg = %d", tamLinhasArq[i]);
         printf("\n");
-        fclose(arq); 
     }
 
-    pthread_exit(NULL);
+}
 
+
+int main() {
+    int nArq;
+    leArquivos(&nArq);
+
+    int i, j; 
+    for(i=0; i<nArq; i++) {
+        for(j=0; j<tamLinhasArq[i]; j++) {
+            printf("%d %s\n", matrixMsg[i][j].linha, matrixMsg[i][j].text);
+        }
+        printf("\n\n");
+    }
+
+    printf("Digite a quantidade de linhas da tela: ");
+    scanf("%d", &L);     
+    init(L, nArq);
+
+    theMsg *trueMsg = (theMsg *) malloc(nArq*sizeof(theMsg));
+
+    int tam;
+    for(i=0; i<nArq; i++) {
+
+        tam = tamLinhasArq[i];
+        //printf("%d\n", tam);
+        trueMsg[i].vetMsg = (msg *) malloc(tam*sizeof(msg));
+        trueMsg[i].size = tam;
+        //printf("trueMsg.size=%d\n", trueMsg[i].size);
+        for(j=0; j<tam; j++) {
+            trueMsg[i].vetMsg[j].linha = matrixMsg[i][j].linha;
+            trueMsg[i].vetMsg[j].text = (char *) malloc(strlen(matrixMsg[i][j].text));   
+            strcpy(trueMsg[i].vetMsg[j].text, matrixMsg[i][j].text);
+            //printf("cmd.linha = %d e cmd.text = %s\n", trueMsg[i].vetMsg[j].linha, trueMsg[i].vetMsg[j].text);
+        }
+
+        int rc = pthread_create(&threads[i], NULL, func, (void *) &trueMsg[i]);
+        if(rc) printf("ERRO na criação %d, código de retorno: %d\n", j, rc);
+    }
+
+    for(i=0; i<nArq; i++) {
+        pthread_join(threads[i], NULL);
+        printf("esperando a thread[%d]\n", i);
+    }
+    
+    for(i=0; i < L; i++) {
+        printf("%d", tela[i].linha);
+        printf("%s", colores[i]);        
+        printf("%s\n", tela[i].text);
+        printf("\e[0m");
+    }
+
+    free(threads);
+    free(mutexes);
+    for(i=0; i<L; i++) {
+        free(tela[i].text);
+    }
+    free(tela);
+
+    pthread_exit(NULL);
     return 0;
 }
