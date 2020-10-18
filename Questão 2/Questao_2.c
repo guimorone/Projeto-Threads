@@ -1,7 +1,8 @@
 #include <stdio.h> 
 #include <stdlib.h> 
 #include <pthread.h>
-#include <string.h> 
+#include <string.h>
+#include <time.h>  
 
 char colores[][7] = {"\e[40m", "\e[41m",
 "\e[42m", "\e[43m", "\e[44m", "\e[45m", "\e[46m",
@@ -25,7 +26,27 @@ int L;
 msg** matrixMsg;
 msg *tela;
 
+void delay(int number_of_seconds) 
+{ 
+    // Converting time into milli_seconds 
+    int milli_seconds = 1000 * number_of_seconds; 
+  
+    // Storing start time 
+    clock_t start_time = clock(); 
+  
+    // looping till required time is not achieved 
+    while (clock() < start_time + milli_seconds); 
+} 
+
+void printLinhaTela(int index) {
+    printf("%d", tela[index].linha);
+    printf("%s", colores[index]);        
+    printf("%s\n", tela[index].text);
+    printf("\e[0m");
+}
+
 void *func(void *cmd) {
+    delay(2000);
     //printf("oi");
     theMsg command = *((theMsg *)cmd);
     //printf("command.size=%d", command.size);
@@ -36,17 +57,15 @@ void *func(void *cmd) {
         strcpy(tela[(command.vetMsg[i].linha)-1].text, command.vetMsg[i].text);
         //printf("tela.linha = %d e tela.text = %s\n", tela[(command.vetMsg[i].linha)-1].linha, tela[(command.vetMsg[i].linha)-1].text);
         printf("command.size=%d\n", command.size);
+        int j;
+        for(j=0; j<L; j++) {
+          printLinhaTela(j);
+        }
+        delay(2000);
         pthread_mutex_unlock(&mutexes[(command.vetMsg[i].linha)-1]);
 
     }
     //pthread_exit(NULL);
-}
-
-void printLinhaTela(int index) {
-    printf("%d", tela[index].linha);
-    printf("%s", colores[index]);        
-    printf("%s\n", tela[index].text);
-    printf("\e[0m");
 }
 
 void init(int L, int qtdThreads) {
