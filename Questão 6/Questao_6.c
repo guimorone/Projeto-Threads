@@ -128,7 +128,7 @@ void *produtor(BlockingQueue* Q){
     for(i = 0; i < numElements * threadsConsumidoras; i++){
         // +1 elemento no buffer
         putBlockingQueue(Q, i);
-        printf("Produzi: %d \n", i);
+        printf("Produzi: %d \n", i + 1);
     }
 
     pthread_exit(NULL);
@@ -143,7 +143,7 @@ void *consumidor(BlockingQueue* Q){
     for(i = 0; i < numElements * threadsProdutoras; i++){
         // -1 elemento no buffer
         int aux = takeBlockingQueue(Q);
-        printf("Consumi: %d \n", aux);
+        printf("Consumi: %d \n", aux + 1);
     }  
 
     pthread_exit(NULL);
@@ -166,12 +166,12 @@ int main() {
     int j;
     // Cria as threads produtoras
     for(j = 0; j < threadsProdutoras; j++){
-        pthread_create(&producer[j], NULL, produtor, (void *) fila);
+        pthread_create(&producer[j], NULL, (void *) produtor, (void *) fila);
     } 
 
     // Cria as threads consumidoras
     for(j = 0; j < threadsConsumidoras; j++){
-        pthread_create(&consumer[j], NULL, consumidor, (void *) fila);
+        pthread_create(&consumer[j], NULL, (void *) consumidor, (void *) fila);
     }
 
     // Esperar o término de execução das threads
@@ -184,24 +184,13 @@ int main() {
         pthread_join(consumer[j], NULL);
     } 
 
-    pthread_exit(NULL);
-
-
     int i;
 
     // Libera memória
 
-    for(i = 0; i < threadsConsumidoras; i++){
-        free(consumer[i]);
-    }
     free(consumer);
-
-    for(i = 0; i < threadsProdutoras; i++){
-        free(producer[i]);
-    }
     free(producer);
-
     free(fila);
 
-    return 0;
+    pthread_exit(NULL);
 }
