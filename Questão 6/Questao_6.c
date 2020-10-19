@@ -23,7 +23,7 @@ typedef struct blockingQueue{
 void adicionarElem(BlockingQueue *Q, int v) {
     // adicionar elem ao final da fila
 
-    Elem *aux;
+    Elem *aux = (Elem *) malloc(sizeof(Elem));
     aux->value = v;
     aux->prox = NULL;
 
@@ -130,7 +130,7 @@ void *consumidor(BlockingQueue* Q){
     printf("Consumidor \n");
     
     int i;
-    for(i = 0; i < numElements; i++){
+    for(i = 0; i < numElements * threadsProdutoras; i++){
         int aux = takeBlockingQueue(Q);
         printf("Peguei: %d \n", aux);
     }  
@@ -155,12 +155,10 @@ int main() {
     int j;
     for(j = 0; j < threadsProdutoras; j++){
         pthread_create(&producer[j], NULL, produtor, (void *) fila);
-        pthread_join(producer[j], NULL);
     } 
 
     for(j = 0; j < threadsConsumidoras; j++){
         pthread_create(&consumer[j], NULL, consumidor, (void *) fila);
-        pthread_join(consumer[j], NULL);
     }
 
     pthread_exit(NULL);
