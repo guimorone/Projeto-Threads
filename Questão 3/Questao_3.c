@@ -93,8 +93,9 @@ int main() {
         int rc = pthread_create(&threads[i], NULL, func, (void *) &vetMsg[i]);
         if(rc) printf("ERRO na criacao da thread[%d], codigo de retorno: %d\n", i, rc);
 
-
         j += n1/p;
+
+        free(sub);
     }
 
     for(i=0; i<p; i++) {
@@ -103,5 +104,8 @@ int main() {
     }
 
     printf("count = %d\n", count);
+
+    free(threads);
+    free(vetMsg);
     return 0;
 }

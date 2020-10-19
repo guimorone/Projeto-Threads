@@ -8,9 +8,6 @@ char colores[][7] = {"\e[40m", "\e[41m",
 "\e[42m", "\e[43m", "\e[44m", "\e[45m", "\e[46m",
 "\e[47m"};
 
-pthread_mutex_t *mutexes;
-pthread_t *threads;
-
 typedef struct {
     int linha;
     char *text;
@@ -21,6 +18,8 @@ typedef struct {
     msg *vetMsg;
 } theMsg;
 
+pthread_mutex_t *mutexes;
+pthread_t *threads;
 int *tamLinhasArq;
 int L;
 msg** matrixMsg;
@@ -115,6 +114,7 @@ void leArquivos(int *n) {
             j++;
             tamLinhasArq[i]++;
         }
+        fclose(arq);
         printf("tam *msg = %d", tamLinhasArq[i]);
         printf("\n");
     }
@@ -156,7 +156,7 @@ int main() {
         }
 
         int rc = pthread_create(&threads[i], NULL, func, (void *) &trueMsg[i]);
-        if(rc) printf("ERRO na criação %d, código de retorno: %d\n", j, rc);
+        if(rc) printf("ERRO na criacao da thread[%d], codigo de retorno: %d\n", i, rc);
     }
 
     for(i=0; i<nArq; i++) {
@@ -171,12 +171,20 @@ int main() {
         printf("\e[0m");
     }
 
+
+
     free(threads);
     free(mutexes);
+    free(trueMsg);
     for(i=0; i<L; i++) {
         free(tela[i].text);
     }
     free(tela);
+    for(i=0; i<nArq; i++) {
+        free(matrixMsg[i]);
+    }
+    free(matrixMsg);
+    free(tamLinhasArq);
 
     pthread_exit(NULL);
     return 0;
