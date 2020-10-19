@@ -6,6 +6,7 @@
 // numElements -> número de elementos no total
 int threadsProdutoras, threadsConsumidoras, numElements;
 
+// empty -> fila vazia, fill -> buffer cheio
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t empty = PTHREAD_COND_INITIALIZER;
 pthread_cond_t fill = PTHREAD_COND_INITIALIZER;
@@ -78,6 +79,7 @@ BlockingQueue* newBlockingQueue(unsigned int SizeBuffer){
 void putBlockingQueue(BlockingQueue* Q, int newValue){
     pthread_mutex_lock(&mutex);
 
+    // verifica se o buffer está cheio
     while(Q->sizeBuffer == Q->statusBuffer){
         printf("Fila cheia\n");
         pthread_cond_wait(&empty, &mutex);
@@ -98,6 +100,7 @@ void putBlockingQueue(BlockingQueue* Q, int newValue){
 int takeBlockingQueue(BlockingQueue* Q){
     pthread_mutex_lock(&mutex);
 
+    // verifica se o buffer está vazio
     while(Q->statusBuffer == 0){
         printf("Fila vazia\n");
         pthread_cond_wait(&fill, &mutex);
@@ -106,6 +109,7 @@ int takeBlockingQueue(BlockingQueue* Q){
     int result = retirarElem(Q);
 
     if(Q->statusBuffer == Q->sizeBuffer - 1){
+        // acordar as outras threads
         pthread_cond_broadcast(&empty);
     }
 
@@ -118,7 +122,11 @@ void *produtor(BlockingQueue* Q){
     printf("Produtor \n");
 
     int i;
+    // como pode ter mais de uma thread consumidora,
+    // se produz numElements * threadsConsumidoras itens
+    // isso é feito para não faltar itens para as threads
     for(i = 0; i < numElements * threadsConsumidoras; i++){
+        // +1 elemento no buffer
         putBlockingQueue(Q, i);
         printf("Produzi: %d \n", i);
     }
@@ -130,9 +138,12 @@ void *consumidor(BlockingQueue* Q){
     printf("Consumidor \n");
     
     int i;
+    // como pode ter mais de uma thread produtora,
+    // se consome numElements * threadsProdutoras itens
     for(i = 0; i < numElements * threadsProdutoras; i++){
+        // -1 elemento no buffer
         int aux = takeBlockingQueue(Q);
-        printf("Peguei: %d \n", aux);
+        printf("Consumi: %d \n", aux);
     }  
 
     pthread_exit(NULL);
@@ -153,18 +164,32 @@ int main() {
     pthread_t *producer = (pthread_t *) malloc(threadsProdutoras * sizeof(pthread_t));
 
     int j;
+    // Cria as threads produtoras
     for(j = 0; j < threadsProdutoras; j++){
         pthread_create(&producer[j], NULL, produtor, (void *) fila);
     } 
 
+    // Cria as threads consumidoras
     for(j = 0; j < threadsConsumidoras; j++){
         pthread_create(&consumer[j], NULL, consumidor, (void *) fila);
     }
+
+    // Esperar o término de execução das threads
+
+    for(j = 0; j < threadsProdutoras; j++){
+        pthread_join(producer[j], NULL);
+    } 
+
+    for(j = 0; j < threadsConsumidoras; j++){
+        pthread_join(consumer[j], NULL);
+    } 
 
     pthread_exit(NULL);
 
 
     int i;
+
+    // Libera memória
 
     for(i = 0; i < threadsConsumidoras; i++){
         free(consumer[i]);
