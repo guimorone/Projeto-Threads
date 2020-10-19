@@ -82,6 +82,7 @@ void putBlockingQueue(BlockingQueue* Q, int newValue){
     // verifica se o buffer está cheio
     while(Q->sizeBuffer == Q->statusBuffer){
         printf("Fila cheia\n");
+        // thread vai dormir
         pthread_cond_wait(&empty, &mutex);
     }
 
@@ -103,6 +104,7 @@ int takeBlockingQueue(BlockingQueue* Q){
     // verifica se o buffer está vazio
     while(Q->statusBuffer == 0){
         printf("Fila vazia\n");
+        // thread vai dormir
         pthread_cond_wait(&fill, &mutex);
     }
 
@@ -183,8 +185,6 @@ int main() {
     for(j = 0; j < threadsConsumidoras; j++){
         pthread_join(consumer[j], NULL);
     } 
-
-    int i;
 
     // Libera memória
 
