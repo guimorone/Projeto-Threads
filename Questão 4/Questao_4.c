@@ -1,5 +1,6 @@
 #include <stdio.h> 
-#include <stdlib.h> 
+#include <stdlib.h>
+#include <stdbool.h> 
 #include <pthread.h>
 
 int qtdThreads;
@@ -9,6 +10,7 @@ pthread_t *threads, despachante;
 // empty -> buffer vazio
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t empty = PTHREAD_COND_INITIALIZER;
+// talvez precisa criar outra "pthread_cond_t"
 
 // O buffer será implementado com a estrutura de dados
 // de uma lista encadeada
@@ -76,15 +78,40 @@ int retirarElem() {
     return result;
 }
 
+// achar um elemento na fila
+bool find(int val){
+    int tam;
+    // não sei se precisa desse malloc aqui
+    // mas botei por precaução
+    Elem *aux = (Elem *) malloc(sizeof(Elem));
+    aux = buffer->head;
+    while(aux != NULL){
+        if(aux->value == val) {
+            free(aux);
+            return true;
+        }
+
+        aux = aux->prox;
+    }
+
+    free(aux);
+    return false;
+}
+
 void criarBuffer(){
-    buffer = (BlockingQueue *) malloc(sizeof(BlockingQueue));
+    buffer = (Queue *) malloc(sizeof(Queue));
     buffer->statusBuffer = 0;
     buffer->head = NULL;
     buffer->last = NULL;
 }
 
-void *funexec(int param){ // param == id
+/*void *funexec(int param){ // param == id
     pthread_mutex_lock(&mutex);
+    if(buffer->statusBuffer == 0){
+        pthread_cond_wait(&empty, &mutex);
+    }
+
+    retirarElem();
 
 
 
@@ -95,19 +122,21 @@ void *funexec(int param){ // param == id
 void *agendarExecução(int id){
     adicionarElem(id);
     printf("Requisição de id %d colocada no buffer\n", id);
+    if(buffer->statusBuffer == 1){
+        pthread_cond_signal(&empty);
+    }
 
-    pthread_create(&despachante, NULL, (void *) funexec, (void *) id);
+    pthread_create(&despachante, NULL, (void *) funexec, (void *) &id);
 
     // espera a despachante terminar de executar
     pthread_join(despachante, NULL);    
     pthread_exit(NULL);
-}
+} */
 
 void pegarResultadoExecucao(int id){
-    // Se não terminou:
-    printf("Execução de %d ainda não terminou\n", id);
-    // Se sim:
-    printf("Execução de %d finalizada\n", id);
+    // Se achar no buffer é pq ainda não terminou a execução
+    if(find(id)) printf("Execução de %d ainda não terminou\n", id);
+    else printf("Execução de %d finalizada\n", id);
 }
 
 void clear(){
@@ -126,14 +155,21 @@ int main() {
     threads = (pthread_t *) malloc(qtdThreads * sizeof(pthread_t));
     criarBuffer();
 
-    int i;
+    /* int i;
     for(i = 0; i < qtdThreads; i++){
-        pthread_create(&threads[i], NULL, (void *) agendarExecução, (void *) i);
+        pthread_create(&threads[i], NULL, (void *) agendarExecução, (void *) &i);
     }
 
     // esperar o término de execução das threads
     for(i = 0; i < qtdThreads; i++){
         pthread_join(threads[i], NULL);
+    } */
+
+    while(buffer->statusBuffer > 0){
+        int k;
+        for(k = 0; k < qtdThreads; k++){
+            pegarResultadoExecucao(k);
+        }
     }
 
     // libera memória
