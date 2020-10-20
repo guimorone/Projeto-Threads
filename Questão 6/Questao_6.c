@@ -51,15 +51,21 @@ int retirarElem(BlockingQueue *Q) {
     }
 
     int result = Q->head->value;
+    Elem *aux = Q->head;
 
     if(Q->head->prox != NULL && Q->statusBuffer == 2) {
         Q->head = Q->head->prox;
         Q->last = Q->head;
     } else if(Q->head->prox != NULL){
         Q->head = Q->head->prox;
-    } else Q->head = NULL;
+    } else {
+        Q->head = NULL;
+        Q->last = NULL;
+    }
 
     Q->statusBuffer--;
+
+    free(aux);
 
     return result;
 }
@@ -151,6 +157,14 @@ void *consumidor(BlockingQueue* Q){
     pthread_exit(NULL);
 }
 
+void clear(BlockingQueue *Q){
+    while(Q->statusBuffer > 0){
+        int aux = retirarElem(Q);
+    }
+
+    free(Q);
+}
+
 
 int main() {
 
@@ -190,7 +204,7 @@ int main() {
 
     free(consumer);
     free(producer);
-    free(fila);
+    clear(fila);
 
     pthread_exit(NULL);
 }
