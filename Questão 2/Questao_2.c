@@ -13,27 +13,18 @@ typedef struct {
     char *text;
 } msg;
 
-typedef struct {
-    int size;
-    msg *vetMsg;
-} theMsg;
-
+pthread_mutex_t printMutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t *mutexes;
 pthread_t *threads;
-int *tamLinhasArq;
 int L;
-msg** matrixMsg;
 msg *tela;
+char** filenames;
 
 void delay(int number_of_seconds) 
 { 
-    // Converting time into milli_seconds 
     int milli_seconds = 1000 * number_of_seconds; 
-  
-    // Storing start time 
     clock_t start_time = clock(); 
   
-    // looping till required time is not achieved 
     while (clock() < start_time + milli_seconds); 
 } 
 
@@ -46,33 +37,63 @@ void printLinhaTela(int index) {
 
 void *func(void *cmd) {
     delay(2000);
-    //printf("oi");
-    theMsg command = *((theMsg *)cmd);
-    //printf("command.size=%d", command.size);
+    char *command = *((char **)cmd);
+
+    FILE *arq = fopen(command, "r");
+    if(arq == NULL) {
+        printf("ERRO ao tentar abrir arquivo %s\n", command);
+        exit(-1);
+    }
+
+    int size = 0;
+    int linha;
+    char text[100];
+    msg *dados = NULL;
+
+    while(fscanf(arq, "%d %[^\n]", &linha, text) != EOF) {
+        dados = (msg *) realloc(dados, (1+size)*sizeof(msg));
+        dados[size].linha = linha;
+        dados[size].text = (char *) malloc(strlen(text));
+        strcpy(dados[size].text, text);
+        size++;
+    }
+    fclose(arq);
+
     int i;
-    for(i=0; i<command.size; i++) {
-        pthread_mutex_lock(&mutexes[(command.vetMsg[i].linha)-1]);
-        tela[(command.vetMsg[i].linha)-1].text = (char *) malloc(strlen(command.vetMsg[i].text));
-        strcpy(tela[(command.vetMsg[i].linha)-1].text, command.vetMsg[i].text);
-        //printf("tela.linha = %d e tela.text = %s\n", tela[(command.vetMsg[i].linha)-1].linha, tela[(command.vetMsg[i].linha)-1].text);
-        printf("command.size=%d\n", command.size);
+    for(i=0; i<size; i++) {
+        pthread_mutex_lock(&mutexes[(dados[i].linha)-1]);
+        tela[(dados[i].linha)-1].text = (char *) malloc(strlen(dados[i].text));
+        strcpy(tela[(dados[i].linha)-1].text, dados[i].text);
+
+        //pthread_mutex_lock(&printMutex);
         int j;
         for(j=0; j<L; j++) {
           printLinhaTela(j);
         }
-        delay(2000);
-        pthread_mutex_unlock(&mutexes[(command.vetMsg[i].linha)-1]);
+        printf("\n");
+        //pthread_mutex_unlock(&printMutex);
+
+        delay(4500);
+        system("clear");
+        pthread_mutex_unlock(&mutexes[(dados[i].linha)-1]);
 
     }
-    //pthread_exit(NULL);
+
+    free(dados);
 }
 
 void init(int L, int qtdThreads) {
     threads = (pthread_t *) malloc(qtdThreads*sizeof(pthread_t));
     mutexes = (pthread_mutex_t *) malloc(L*sizeof(pthread_mutex_t));
     tela = (msg *) malloc(L*sizeof(msg));
+    filenames = (char **) malloc(qtdThreads*sizeof(char *));
 
     int i;
+
+    for(i=0; i<qtdThreads; i++) {
+        filenames[i] = (char *) malloc(50);
+    }
+
     for(i=0; i<L; i++) {
         tela[i].linha = i;
         tela[i].text = (char *) malloc(6);
@@ -82,86 +103,32 @@ void init(int L, int qtdThreads) {
     }    
 }
 
-void leArquivos(int *n) {
-    int i;
-    printf("Digite o numero de arquivos: ");
-    scanf("%d", n);
-
-    matrixMsg = (msg **) malloc((*n)*sizeof(msg *));
-    tamLinhasArq = (int *) malloc((*n)*sizeof(int));
-
-    for(i=0; i< (*n); i++) {
-        char str[50];
-        printf("Digite o nome do arquivo no formato *.txt: ");
-        scanf(" %[^\n]", str);
-        FILE *arq = fopen(str, "r");
-        if(arq == NULL) {
-            printf("ERRO ao criar arquivo %d", i);
-            exit(-1);
-        }
-
-        int linha;
-        char text[100];
-        int j=0;
-        matrixMsg[i] = NULL;
-        tamLinhasArq[i] = 0;
-        while(fscanf(arq, "%d %[^\n]", &linha, text) != EOF) {
-            matrixMsg[i] = (msg *) realloc(matrixMsg[i], (1+j)*sizeof(msg));
-            matrixMsg[i][j].linha = linha;
-            matrixMsg[i][j].text = (char *) malloc(strlen(text));
-            strcpy(matrixMsg[i][j].text, text);
-            //printf("%d-%s ", matrixMsg[i][j].linha, matrixMsg[i][j].text);
-            j++;
-            tamLinhasArq[i]++;
-        }
-        fclose(arq);
-        printf("tam *msg = %d", tamLinhasArq[i]);
-        printf("\n");
-    }
-
-}
-
 
 int main() {
     int nArq;
-    leArquivos(&nArq);
+    printf("Digite o numero de arquivos: ");
+    scanf("%d", &nArq);
 
     int i, j; 
-    for(i=0; i<nArq; i++) {
-        for(j=0; j<tamLinhasArq[i]; j++) {
-            printf("%d %s\n", matrixMsg[i][j].linha, matrixMsg[i][j].text);
-        }
-        printf("\n\n");
-    }
 
     printf("Digite a quantidade de linhas da tela: ");
     scanf("%d", &L);     
     init(L, nArq);
 
-    theMsg *trueMsg = (theMsg *) malloc(nArq*sizeof(theMsg));
+    for(i=0; i<nArq; i++) {
+        printf("Digite o nome do arquivo[%d] a ser lido: ", i);
+        scanf(" %[^\n]", filenames[i]);
+    }
 
     int tam;
     for(i=0; i<nArq; i++) {
 
-        tam = tamLinhasArq[i];
-        //printf("%d\n", tam);
-        trueMsg[i].vetMsg = (msg *) malloc(tam*sizeof(msg));
-        trueMsg[i].size = tam;
-        //printf("trueMsg.size=%d\n", trueMsg[i].size);
-        for(j=0; j<tam; j++) {
-            trueMsg[i].vetMsg[j].linha = matrixMsg[i][j].linha;
-            trueMsg[i].vetMsg[j].text = (char *) malloc(strlen(matrixMsg[i][j].text));   
-            strcpy(trueMsg[i].vetMsg[j].text, matrixMsg[i][j].text);
-            //printf("cmd.linha = %d e cmd.text = %s\n", trueMsg[i].vetMsg[j].linha, trueMsg[i].vetMsg[j].text);
-        }
-
-        int rc = pthread_create(&threads[i], NULL, func, (void *) &trueMsg[i]);
+        int rc = pthread_create(&threads[i], NULL, func, (void *) &filenames[i]);
         if(rc) printf("ERRO na criacao da thread[%d], codigo de retorno: %d\n", i, rc);
     }
 
     for(i=0; i<nArq; i++) {
         pthread_join(threads[i], NULL);
-        printf("esperando a thread[%d]\n", i);
     }
     
     for(i=0; i < L; i++) {
@@ -175,16 +142,15 @@ int main() {
 
     free(threads);
     free(mutexes);
-    free(trueMsg);
+    for(i=0; i<nArq; i++) {
+        free(filenames[i]);
+    }
+    free(filenames);
+
     for(i=0; i<L; i++) {
         free(tela[i].text);
     }
     free(tela);
-    for(i=0; i<nArq; i++) {
-        free(matrixMsg[i]);
-    }
-    free(matrixMsg);
-    free(tamLinhasArq);
 
     pthread_exit(NULL);
     return 0;
