@@ -3,37 +3,57 @@
 #include <stdbool.h> 
 #include <pthread.h>
 
-int qtdThreads;
+int qtdThreads,qntRequisicoes,id=-1;
+int* readyResults;
 
-pthread_t *threads, despachante; 
+pthread_t despachante; 
 
-// empty -> buffer vazio
-pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
-pthread_cond_t empty = PTHREAD_COND_INITIALIZER;
-// talvez precisa criar outra "pthread_cond_t"
+pthread_mutex_t* resultMutexes;
+pthread_mutex_t mutexDespachante = PTHREAD_MUTEX_INITIALIZER;;
+pthread_cond_t emptyQueue = PTHREAD_COND_INITIALIZER;
+pthread_cond_t threadDisponivel = PTHREAD_COND_INITIALIZER;
 
-// O buffer será implementado com a estrutura de dados
-// de uma lista encadeada
+typedef struct structAgendar{
+    void* param,
+    void* funexec
+} structAgendar;
+
+typedef struct requisicao{
+    void* param,
+    void* funexec,
+    int id
+}requisicao;
+
+typedef struct threadWrapper{
+    pthread_t thread,
+    int threadID,
+    int occupied
+} threadWrapper;
+
+typedef struct threadFunctionStruct{
+    int threadID,
+    requisicao req
+} threadFunctionStruct;
 
 typedef struct elem{
-   int value;
+   requisicao value;
    struct elem *prox;
 } Elem;
 
-// status buffer == tamanho atual do buffer
-// o buffer não tem um tamanho máximo
 typedef struct queue{
    unsigned int statusBuffer;
    Elem *head,*last;
 } Queue;
 
+threadWrapper* threads;
+
 Queue *buffer;
 
-void adicionarElem(int v) {
+void adicionarElem(requisicao req) {
     // adicionar elem ao final da fila
 
     Elem *aux = (Elem *) malloc(sizeof(Elem));
-    aux->value = v;
+    aux->value = req;
     aux->prox = NULL;
 
     // primeiro elemento da fila
@@ -50,15 +70,15 @@ void adicionarElem(int v) {
     buffer->statusBuffer++;
 }
 
-// retira o primeiro elemento do buffer
-int retirarElem() {
+requisicao retirarElem() {
     if(buffer->statusBuffer == 0){
         // buffer vazio
         // já será verificado antes, mas só para ter certeza
-        return -1;
+        printf("Disney");
+        exit(-1);
     }
 
-    int result = buffer->head->value;
+    requisicao result = buffer->head->value;
     Elem *aux = buffer->head;
 
     if(buffer->head->prox != NULL && buffer->statusBuffer == 2) {
@@ -78,103 +98,129 @@ int retirarElem() {
     return result;
 }
 
-// achar um elemento na fila
-bool find(int val){
-    int tam;
-    // não sei se precisa desse malloc aqui
-    // mas botei por precaução
-    Elem *aux = (Elem *) malloc(sizeof(Elem));
-    aux = buffer->head;
-    while(aux != NULL){
-        if(aux->value == val) {
-            free(aux);
-            return true;
+int findFreeThread(){
+    int i;
+    for(i=0;i<qtdThreads;i++){
+        if(threads[i].occupied = false){
+            return i;
         }
-
-        aux = aux->prox;
     }
-
-    free(aux);
-    return false;
+    return -1;
 }
 
-void criarBuffer(){
+int agendarExecucao(structAgendar req){
+    id++;
+    requisicao novaReq;
+    novaReq.param = req.param;
+    novaReq.funexec = req.funexec;
+    novaReq.id = id;
+    adicionarElem(novaReq);
+    pthread_mutex_lock(&resultMutexes[id]);
+    pthread_cond_broadcast(&emptyQueue);
+    return id;
+}
+
+void despachante(){
+    int i;
+    for(i=0;i<qntRequisicoes;i++){
+
+        while(queueRequisicoes->statusBuffer==0) pthread_cond_wait(&emptyQueue, &mutexDespachante);
+        requisicao command = retirarElem()
+        //espera ter uma thread livre
+        int threadID = findFreeThread()
+        while(threadID==-1){
+            pthread_cond_wait(&threadDisponivel, &mutexDespachante);
+            threadID = findFreeThread();
+        }
+        //sinaliza que a nova thread está ocupada
+        threads[threadID].occupied = true;
+
+        threadFunctionStruct threadParams;
+        threadParams.threadID = threadID;
+        threadParams.req = command;
+        //chama o function wrapper usando a thread livre
+        pthreadCreate(threads[threadID].thread,NULL,(void*)threadFunctionWrapper,(void*)threadParams)
+    }
+}
+
+void threadFunctionWrapper(threadFunctionStruct params){
+    //executa a funcao do usuario e guarda o retorno
+    var result = params.req.funExec(params.req.param);
+    readyResults[params.req.id]=result;
+    //desbloqueia o usuario que quiser pegar essa informaçao
+    up(resultMutexes[args.command.id])
+    pthread_mutex_unlock(&resultMutexes[params.req.id]);
+    //sinaliza que essa thread nao está mais ocupada
+    threads[params.threadID].occupied = false
+    pthread_cond_broadcast(&threadDisponivel);
+}
+
+int pegarResultadoExecucao(int searchID){
+    //fica bloqueado até o mutex daquela requisicao especifica for desbloqueado
+    pthread_mutex_lock(&resultMutexes[searchID]);
+    return readyResults[searchID];
+}
+
+
+void init(){
+
+    //inicializa buffer
     buffer = (Queue *) malloc(sizeof(Queue));
     buffer->statusBuffer = 0;
     buffer->head = NULL;
     buffer->last = NULL;
-}
-
-/*void *funexec(int param){ // param == id
-    pthread_mutex_lock(&mutex);
-    if(buffer->statusBuffer == 0){
-        pthread_cond_wait(&empty, &mutex);
-    }
-
-    retirarElem();
 
 
-
-    pthread_mutex_unlock(&mutex);
-    pthread_exit(NULL);
-}
-
-void *agendarExecução(int id){
-    adicionarElem(id);
-    printf("Requisição de id %d colocada no buffer\n", id);
-    if(buffer->statusBuffer == 1){
-        pthread_cond_signal(&empty);
-    }
-
-    pthread_create(&despachante, NULL, (void *) funexec, (void *) &id);
-
-    // espera a despachante terminar de executar
-    pthread_join(despachante, NULL);    
-    pthread_exit(NULL);
-} */
-
-void pegarResultadoExecucao(int id){
-    // Se achar no buffer é pq ainda não terminou a execução
-    if(find(id)) printf("Execução de %d ainda não terminou\n", id);
-    else printf("Execução de %d finalizada\n", id);
+    //criar thread despachante
+    //inicializar threads worker
+    //inicializar mutexes
+    //inicializar o vetor de resultados
 }
 
 void clear(){
+    //liberar buffer
+    //liberar threads worker
     while(buffer->statusBuffer > 0){
-        int aux = retirarElem();
+        requisicao aux = retirarElem();
     }
 
     free(buffer);
+
+    //liberar threads worker
+}
+
+
+int funexec(int a){
+    return a++;
 }
 
 int main() {
 
+    init();
+
     printf("Digite a quantidade de processadores ou núcleos do sistema computacional: ");
     scanf("%d", &qtdThreads);
 
-    threads = (pthread_t *) malloc(qtdThreads * sizeof(pthread_t));
-    criarBuffer();
+    printf("Digite a quantidade de requisicões: ");
+    scanf("%d", &qntRequisicoes);
 
-    /* int i;
-    for(i = 0; i < qtdThreads; i++){
-        pthread_create(&threads[i], NULL, (void *) agendarExecução, (void *) &i);
+    //inicializar o servidor
+    init();
+
+    int i;
+    for(i=0;i<qntRequisicoes;i++){
+        structAgendar novaReq;
+        novaReq.funexec = (void*) funexec;
+        novaReq.param = (void*) i;
+        agendarExecucao(novaReq);
     }
 
-    // esperar o término de execução das threads
-    for(i = 0; i < qtdThreads; i++){
-        pthread_join(threads[i], NULL);
-    } */
-
-    while(buffer->statusBuffer > 0){
-        int k;
-        for(k = 0; k < qtdThreads; k++){
-            pegarResultadoExecucao(k);
-        }
+    for(i=0;i<qntRequisicoes;i++){
+        int resultado = pegarResultadoExecucao(i);
+        printf("Resultado %d: %d", i, resultado);
     }
 
-    // libera memória
-    free(threads);
-    clear(); //limpa todo o buffer
+    clear();
 
     pthread_exit(NULL);
 }
