@@ -9,30 +9,31 @@ int* readyResults;
 pthread_t despachante; 
 
 pthread_mutex_t* resultMutexes;
-pthread_mutex_t mutexDespachante = PTHREAD_MUTEX_INITIALIZER;;
+pthread_mutex_t mutexDespachante = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t emptyQueue = PTHREAD_COND_INITIALIZER;
 pthread_cond_t threadDisponivel = PTHREAD_COND_INITIALIZER;
 
+
 typedef struct structAgendar{
-    void* param,
-    void* funexec
+    void* param;
+    void* funexec;
 } structAgendar;
 
 typedef struct requisicao{
-    void* param,
-    void* funexec,
-    int id
-}requisicao;
+    void* param;
+    void* funexec;
+    int id;
+} requisicao;
 
 typedef struct threadWrapper{
-    pthread_t thread,
-    int threadID,
-    int occupied
+    pthread_t thread;
+    int threadID;
+    int occupied;
 } threadWrapper;
 
 typedef struct threadFunctionStruct{
-    int threadID,
-    requisicao req
+    int threadID;
+    requisicao req;
 } threadFunctionStruct;
 
 typedef struct elem{
@@ -45,7 +46,7 @@ typedef struct queue{
    Elem *head,*last;
 } Queue;
 
-threadWrapper* threads;
+threadWrapper* threads; // threads workers
 
 Queue *buffer;
 
@@ -101,7 +102,7 @@ requisicao retirarElem() {
 int findFreeThread(){
     int i;
     for(i=0;i<qtdThreads;i++){
-        if(threads[i].occupied = false){
+        if(threads[i].occupied == false){
             return i;
         }
     }
@@ -120,14 +121,27 @@ int agendarExecucao(structAgendar req){
     return id;
 }
 
-void despachante(){
-    int i;
-    for(i=0;i<qntRequisicoes;i++){
+void threadFunctionWrapper(threadFunctionStruct params){
+    //executa a funcao do usuario e guarda o retorno
+    //int result = params.req.funexec(params.req.param);
+    int (*fun)(int) = params.req.funexec;
+    int result = fun((int)params.req.param);
+    readyResults[params.req.id]=result;
+    //desbloqueia o usuario que quiser pegar essa informaçao
+    pthread_mutex_unlock(&resultMutexes[params.req.id]);
+    //sinaliza que essa thread nao está mais ocupada
+    threads[params.threadID].occupied = false;
+    pthread_cond_broadcast(&threadDisponivel);
+}
 
-        while(queueRequisicoes->statusBuffer==0) pthread_cond_wait(&emptyQueue, &mutexDespachante);
-        requisicao command = retirarElem()
+void despachanteFunc(){
+    int i;
+    for(i = 0; i < qntRequisicoes; i++){
+
+        while(buffer->statusBuffer==0) pthread_cond_wait(&emptyQueue, &mutexDespachante);
+        requisicao command = retirarElem();
         //espera ter uma thread livre
-        int threadID = findFreeThread()
+        int threadID = findFreeThread();
         while(threadID==-1){
             pthread_cond_wait(&threadDisponivel, &mutexDespachante);
             threadID = findFreeThread();
@@ -139,20 +153,8 @@ void despachante(){
         threadParams.threadID = threadID;
         threadParams.req = command;
         //chama o function wrapper usando a thread livre
-        pthreadCreate(threads[threadID].thread,NULL,(void*)threadFunctionWrapper,(void*)threadParams)
+        pthread_create(&threads[threadID].thread,NULL,(void*)threadFunctionWrapper, (void*) &threadParams);
     }
-}
-
-void threadFunctionWrapper(threadFunctionStruct params){
-    //executa a funcao do usuario e guarda o retorno
-    var result = params.req.funExec(params.req.param);
-    readyResults[params.req.id]=result;
-    //desbloqueia o usuario que quiser pegar essa informaçao
-    up(resultMutexes[args.command.id])
-    pthread_mutex_unlock(&resultMutexes[params.req.id]);
-    //sinaliza que essa thread nao está mais ocupada
-    threads[params.threadID].occupied = false
-    pthread_cond_broadcast(&threadDisponivel);
 }
 
 int pegarResultadoExecucao(int searchID){
@@ -160,7 +162,6 @@ int pegarResultadoExecucao(int searchID){
     pthread_mutex_lock(&resultMutexes[searchID]);
     return readyResults[searchID];
 }
-
 
 void init(){
 
@@ -170,12 +171,18 @@ void init(){
     buffer->head = NULL;
     buffer->last = NULL;
 
-
     //criar thread despachante
+    pthread_create(&despachante, NULL, (void *) despachanteFunc, NULL);
     //inicializar threads worker
+    threads = (threadWrapper *) malloc(qtdThreads * sizeof(threadWrapper));
     //inicializar mutexes
+    resultMutexes = (pthread_mutex_t *) malloc(qtdThreads * sizeof(pthread_mutex_t));
+    int i;
+    for(i = 0; i < qtdThreads; i++) pthread_mutex_init(&resultMutexes[i], NULL);
     //inicializar o vetor de resultados
+    readyResults = (int *) malloc(qntRequisicoes * sizeof(int));
 }
+
 
 void clear(){
     //liberar buffer
@@ -208,14 +215,14 @@ int main() {
     init();
 
     int i;
-    for(i=0;i<qntRequisicoes;i++){
+    for(i = 0; i < qntRequisicoes; i++){
         structAgendar novaReq;
         novaReq.funexec = (void*) funexec;
-        novaReq.param = (void*) i;
+        novaReq.param = (void *) i;
         agendarExecucao(novaReq);
     }
 
-    for(i=0;i<qntRequisicoes;i++){
+    for(i = 0; i < qntRequisicoes; i++){
         int resultado = pegarResultadoExecucao(i);
         printf("Resultado %d: %d", i, resultado);
     }
