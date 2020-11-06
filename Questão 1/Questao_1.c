@@ -41,8 +41,8 @@ int main()
 	//Cria-se array de inteiros que será utilizado para identificar cada thread criada.
     int *threadsId = (int *) malloc(n*sizeof(int));
   
-    /* Criam-se n threads de acordo com a função inc, cujo parâmetro
-	corresponde ao respectivo threadsId[i].*/
+	/* Criam-se n threads de acordo com a função inc, cujo parâmetro
+    corresponde ao respectivo threadsId[i].*/
     for (i = 0; i < n; i++) {
     	threadsId[i] = i;
     	int rc = pthread_create(&threads[i], NULL, inc, (void *) &threadsId[i]);
