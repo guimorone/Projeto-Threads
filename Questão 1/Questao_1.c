@@ -52,7 +52,7 @@ int main()
     	}
     }
 
-	//Uso do pthread_join para esperar a finalização da execução de todas as threads criadas.
+	//Uso do join para esperar a finalização da execução de todas as threads criadas.
     for(i=0; i<n; i++) {
     	pthread_join(threads[i], NULL);
     }
