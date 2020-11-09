@@ -81,10 +81,9 @@ int main() {
     while(n2 >= n1) {
         printf("Digite strings de tamanho valido (n1 > n2): ");
         scanf(" %s %s", s1, s2);
+        n1 = strlen(s1);
+        n2 = strlen(s2);
     }
-
-    n1 = strlen(s1);
-    n2 = strlen(s2);
 
     int p, var=1;
     
