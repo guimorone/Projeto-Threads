@@ -22,10 +22,10 @@ typedef struct blockingQueue{
    Elem *head,*last;
 } BlockingQueue;
 
-typedef struct productFunc{
+typedef struct threadStruct{
     BlockingQueue *buffer;
     int threadID;
-} ProductFunc;
+} threadStruct;
 
 void adicionarElem(BlockingQueue *Q, int v) {
     // adicionar elem ao final da fila
@@ -94,7 +94,7 @@ void putBlockingQueue(BlockingQueue* Q, int newValue){
     pthread_mutex_lock(&mutex);
 
     // verifica se o buffer está cheio
-    while(Q->sizeBuffer == Q->statusBuffer){
+    while(Q->sizeBuffer <= Q->statusBuffer){
         printf("Fila cheia\n");
         // thread vai dormir
         pthread_cond_wait(&empty, &mutex);
@@ -134,7 +134,7 @@ int takeBlockingQueue(BlockingQueue* Q){
     return result;
 }
 
-void *produtor(ProductFunc *param){
+void *produtor(threadStruct *param){
 
     int i;
     // como pode ter mais de uma thread consumidora,
@@ -142,22 +142,22 @@ void *produtor(ProductFunc *param){
     // isso é feito para não faltar itens para as threads
     for(i = 0; i < numElements * threadsConsumidoras; i++){
         // +1 elemento no buffer
-        putBlockingQueue(param->buffer, (param->threadID * numElements * threadsConsumidoras) + i);
-        printf("Produzi: %d \n", (param->threadID * numElements * threadsConsumidoras) + i + 1);
+        putBlockingQueue(param->buffer, (param->threadID * numElements * threadsConsumidoras) + i + 1);
+        printf("Thread %d produziu: %d \n", param->threadID, (param->threadID * numElements * threadsConsumidoras) + i + 1);
     }
     free(param);
     pthread_exit(NULL);
 }
 
-void *consumidor(BlockingQueue* Q){
+void *consumidor(threadStruct* param){
     
     int i;
     // como pode ter mais de uma thread produtora,
     // se consome numElements * threadsProdutoras itens
     for(i = 0; i < numElements * threadsProdutoras; i++){
         // -1 elemento no buffer
-        int aux = takeBlockingQueue(Q);
-        printf("Consumi: %d \n", aux + 1);
+        int aux = takeBlockingQueue(param->buffer);
+        printf("Thread %d consumiu: %d \n", param->threadID, aux);
     }  
 
     pthread_exit(NULL);
@@ -169,6 +169,11 @@ void clear(BlockingQueue *Q){
     }
 
     free(Q);
+}
+
+void printa(int val){
+  printf("Produzi: %d", val);
+  printf("Consumi: %d", val);
 }
 
 
@@ -188,7 +193,7 @@ int main() {
     int j;
     // Cria as threads produtoras
     for(j = 0; j < threadsProdutoras; j++){
-        ProductFunc *aux = (ProductFunc *) malloc(sizeof(ProductFunc));
+        threadStruct *aux = (threadStruct *) malloc(sizeof(threadStruct));
         aux->buffer = fila;
         aux->threadID = j;
         pthread_create(&producer[j], NULL, (void *) produtor, (void *) aux);
@@ -196,7 +201,10 @@ int main() {
 
     // Cria as threads consumidoras
     for(j = 0; j < threadsConsumidoras; j++){
-        pthread_create(&consumer[j], NULL, (void *) consumidor, (void *) fila);
+        threadStruct *aux = (threadStruct *) malloc(sizeof(threadStruct));
+        aux->buffer = fila;
+        aux->threadID = j;
+        pthread_create(&consumer[j], NULL, (void *) consumidor, (void *) aux);
     }
 
     // Esperar o término de execução das threads
