@@ -6,15 +6,17 @@
 int qtdThreads;
 int qntRequisicoes;
 int id = -1;
-//vetor para guardar resultados das operaçoes
+
+//Vetor para guardar resultados das operaçoes.
 int* readyResults;
 
 
 pthread_t despachante; 
 
-//mutexes para bloquear resultados que ainda nao estao prontos
+//Mutexes para bloquear resultados que ainda nao estão prontos.
 pthread_mutex_t* resultMutexes;
-//mutex e cond para despachante esperar por mais requisicoes ou aguardar se todas as threads estiverem ocupadas
+
+//Mutex e cond para despachante esperar por mais requisições ou aguardar se todas as threads estiverem ocupadas.
 pthread_mutex_t mutexDespachante = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t emptyQueue = PTHREAD_COND_INITIALIZER;
 pthread_cond_t threadDisponivel = PTHREAD_COND_INITIALIZER;
@@ -31,20 +33,20 @@ typedef struct requisicao{
   int id;
 } requisicao;
 
-//struct para guardar informacoes adicionais com relacao as threads como estado de uso e id
+//Struct para guardar informações adicionais com relação às threads como estado de uso e id.
 typedef struct threadWrapper{
   pthread_t thread;
   int threadID;
   int occupied;
 } threadWrapper;
 
-//struct para a despachante se comunicar com a thread
+//Struct para a despachante se comunicar com a thread.
 typedef struct threadFunctionStruct{
   int threadID;
   requisicao req;
 } threadFunctionStruct;
 
-//structs para implementacao de lista encadeada
+//Structs para implementação de lista encadeada.
 typedef struct elem{
   requisicao value;
   struct elem *prox;
@@ -55,36 +57,40 @@ typedef struct queue{
   Elem *head,*last;
 } Queue;
 
-threadWrapper* threads; // threads worker
+//Threads trabalhadoras.
+threadWrapper* threads;
 
-//buffer onde ficarao as requisicoes até que sejam mandadas para execucao pela despachante
+//Buffer onde ficarão as requisições até que sejam mandadas para execução pela despachante.
 Queue *buffer;
 
+//Adicionar elemento ao final da fila.
 void adicionarElem(requisicao req) {
-  // adicionar elem ao final da fila
 
   Elem *aux = (Elem *) malloc(sizeof(Elem));
   aux->value = req;
   aux->prox = NULL;
 
-  // primeiro elemento da fila
-  if(buffer->statusBuffer == 0){
+  //Se o buffer for vazio, 'aux' é o primeiro elemento da fila.
+  if(buffer->statusBuffer == 0) {
     buffer->head = aux;
     buffer->last = aux;
-  } else {
-    // O elemento que antes era o último agora vai apontar para o NOVO último (aux)
+  } 
+  else {
+    //O elemento que antes era o último agora vai apontar para o novo último 'aux'.
     buffer->last->prox = aux;
-    // aux vira o ultimo elemento
+
+    //'aux' vira o último elemento.
     buffer->last = aux;
   }
 
   buffer->statusBuffer++;
 }
 
+//Retira o primeiro elemento da fila.
 requisicao retirarElem() {
   if(buffer->statusBuffer == 0){
-    // buffer vazio
-    // já será verificado antes, mas só para ter certeza
+    //Buffer vazio.
+    //Já será verificado antes, mas só para ter certeza.
     exit(-1);
   }
 
@@ -109,7 +115,7 @@ requisicao retirarElem() {
 }
 
 
-//buscar dentre as threads se alguma delas acabou sua execucao anterior e se encontra livre
+//Buscar dentre as threads se alguma delas acabou sua execução anterior e se encontra livre
 int findFreeThread(){
   int i;
   for(i=0;i<qtdThreads;i++){
@@ -129,23 +135,32 @@ int agendarExecucao(structAgendar req){
   novaReq.id = id;
 
   adicionarElem(novaReq);
-  //bloqueia a retirada de um resultado que ainda nao está pronto
+
+  //Bloqueia a retirada de um resultado que ainda nao está pronto.
   pthread_mutex_lock(&resultMutexes[id]);
-  //sinaliza para despachante que tem novas requisicoes na fila
+
+  //Sinaliza para despachante que têm novas requisições na fila.
   pthread_cond_broadcast(&emptyQueue);
+
   return id;
 }
 
 void threadFunctionWrapper(void* param){
-  //executa a funcao do usuario e guarda o retorno
+  
+  //Executa a função do usuário e guarda o retorno.
   threadFunctionStruct params = *((threadFunctionStruct*) param);
+
   int (*fun)(int) = params.req.funexec;
   int result = fun(params.req.param);
-  readyResults[params.req.id]=result;
-  //desbloqueia o usuario que quiser pegar essa informaçao
+
+  readyResults[params.req.id] = result;
+  
+  //Desbloqueia o usuário que quiser pegar essa informação.
   pthread_mutex_unlock(&resultMutexes[params.req.id]);
-  //sinaliza que essa thread nao está mais ocupada
+
+  //Sinaliza que essa thread nao está mais ocupada
   threads[params.threadID].occupied = false;
+
   free(param);
   pthread_cond_broadcast(&threadDisponivel);
 }
@@ -154,57 +169,65 @@ void despachanteFunc(){
   int i;
   pthread_mutex_lock(&mutexDespachante);
   for(i = 0; i < qntRequisicoes; i++){
-    //se nao tiverem requisicoes na fila dorme
+
+    //Se não tiverem requisições na fila, dorme.
     while(buffer->statusBuffer==0) pthread_cond_wait(&emptyQueue, &mutexDespachante);
-    //retira uma nova requisicao da fila
+
+    //Retira uma nova requisição da fila.
     requisicao req = retirarElem();
-    //espera ter uma thread livre
+
+    //Espera ter uma thread livre.
     int threadID = findFreeThread();
     while(threadID==-1){
         pthread_cond_wait(&threadDisponivel, &mutexDespachante);
         threadID = findFreeThread();
     }
-    //sinaliza que a nova thread está ocupada
+
+    //Sinaliza que a thread que seŕa utilizada está agora ocupada.
     threads[threadID].occupied = true;
     threadFunctionStruct* threadParams= (threadFunctionStruct *) malloc(sizeof(threadFunctionStruct));
     threadParams->threadID = threadID;
     threadParams->req = req;
-    //chama o function wrapper usando a thread livre
+
+    //Chama 'threadFunctionWrapper' usando a thread preparada.
     pthread_create(&threads[threadID].thread, NULL, (void*)threadFunctionWrapper, (void*) threadParams);
   }
 }
 
 int pegarResultadoExecucao(int searchID){
-    //fica bloqueado até o mutex daquela requisicao especifica for desbloqueado
+
+    //Fica bloqueado até que o mutex daquela requisição específica seja desbloqueado.
     pthread_mutex_lock(&resultMutexes[searchID]);
     return readyResults[searchID];
 }
 
 void init(){
 
-  //inicializa buffer
+  //Inicializa buffer.
   buffer = (Queue *) malloc(sizeof(Queue));
   buffer->statusBuffer = 0;
   buffer->head = NULL;
   buffer->last = NULL;
 
-  //cria thread despachante
+  //Cria thread despachante.
   pthread_create(&despachante, NULL, (void *) despachanteFunc, NULL);
-  //inicializa threads worker
+
+  //Inicializa threads trabalhadoras.
   threads = (threadWrapper *) malloc(qtdThreads * sizeof(threadWrapper));
-  //inicializa mutexes
+  
+  //Inicializa mutexes.
   resultMutexes = (pthread_mutex_t *) malloc(qntRequisicoes * sizeof(pthread_mutex_t));
+  
   int i;
   for(i = 0; i < qtdThreads; i++) pthread_mutex_init(&resultMutexes[i], NULL);
-  //inicializa o vetor de resultados
+  //Inicializa o vetor de resultados.
   readyResults = (int *) malloc(qntRequisicoes * sizeof(int));
 }
 
 
 void clear(){
-  //libera buffer
-  //libera threads worker
-  //libera mutexes
+
+  //Libera buffer, threads trabalhadoras e mutexes.
   while(buffer->statusBuffer > 0){
       requisicao aux = retirarElem();
   }
@@ -215,7 +238,7 @@ void clear(){
   free(threads);
 }
 
-//funcoes usadas para execucao
+//Funções usadas para execução.
 int funexec1(int a){
   return ++a;
 }
@@ -231,8 +254,10 @@ int main() {
   printf("Digite a quantidade de requisicões: ");
   scanf("%d", &qntRequisicoes);
 
-  //inicializar o servidor
+  //Inicializar servidor.
   init();
+
+  //Criação de requisições e agendamento.
   int i;
   for(i = 0; i < qntRequisicoes; i++){
     structAgendar novaReq;
@@ -242,10 +267,12 @@ int main() {
     agendarExecucao(novaReq);
   }
 
+  //Pegar os resultados das requisições e printar na tela.
   for(i = 0; i < qntRequisicoes; i++){
     int resultado = pegarResultadoExecucao(i);
     printf("Resultado %d: %d\n", i, resultado);
   }
+  
   pthread_join(despachante, NULL);
 
   clear();
