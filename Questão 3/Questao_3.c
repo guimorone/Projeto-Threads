@@ -40,7 +40,7 @@ void *func(void *cmd) {
                     break;
                 }
             }
-            printf("%d\n", k);
+
             //Se ocorre, incrementa 'count' respeitando a exclusão mútua.
             if(ok && k == tams2) {
                 pthread_mutex_lock(&mutex);
@@ -73,11 +73,19 @@ int main() {
 
     printf("Digite as string s1 e s2: ");
     scanf(" %s %s", s1, s2);
- 
+
     //Guarda-se o tamanho de s1 e s2.
     int n1 = strlen(s1);
     int n2 = strlen(s2);
 
+    while(n2 >= n1) {
+        printf("Digite strings de tamanho valido (n1 > n2): ");
+        scanf(" %s %s", s1, s2);
+    }
+
+    n1 = strlen(s1);
+    n2 = strlen(s2);
+    
     int p, var=1;
     
     //Aqui é estabelecido o valor 'p' correspondente à quantidade de threads a serem criadas,
