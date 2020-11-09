@@ -95,9 +95,9 @@ void putBlockingQueue(threadStruct* param, int newValue){
 
     // verifica se o buffer está cheio
     while(param->buffer->sizeBuffer <= param->buffer->statusBuffer){
-        printf("Fila cheia\n");
+
         // thread vai dormir
-        printf("Thread produtora %d foi dormir\n", param->threadID);
+        printf("\nFila cheia!\nThread produtora %d foi dormir\n\n", param->threadID);
         pthread_cond_wait(&empty, &mutex);
     }
 
@@ -105,6 +105,7 @@ void putBlockingQueue(threadStruct* param, int newValue){
     printf("Thread produtora %d produziu: %d\n", param->threadID, newValue);
     
     if(param->buffer->statusBuffer == 1) {
+        printf("Todas as threads consumidoras foram acordadas.\n\n");
         pthread_cond_broadcast(&fill);
         // acorda as outras threads
     }
@@ -119,9 +120,9 @@ int takeBlockingQueue(threadStruct* param){
 
     // verifica se o buffer está vazio
     while(param->buffer->statusBuffer == 0){
-        printf("Fila vazia\n");
+        
         // thread vai dormir
-        printf("Thread consumidora %d foi dormir\n", param->threadID);
+        printf("\nFila vazia!\nThread consumidora %d foi dormir\n\n", param->threadID);
         pthread_cond_wait(&fill, &mutex);
     }
 
@@ -130,6 +131,7 @@ int takeBlockingQueue(threadStruct* param){
 
     if(param->buffer->statusBuffer == param->buffer->sizeBuffer - 1){
         // acordar as outras threads
+        printf("Todas as threads produtoras foram acordadas.\n\n");
         pthread_cond_broadcast(&empty);
     }
 
