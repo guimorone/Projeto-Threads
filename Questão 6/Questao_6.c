@@ -90,20 +90,21 @@ BlockingQueue* newBlockingQueue(unsigned int SizeBuffer){
 }
 
 // produtor -> put
-void putBlockingQueue(BlockingQueue* Q, int newValue){
+void putBlockingQueue(threadStruct* param, int newValue){
     pthread_mutex_lock(&mutex);
 
     // verifica se o buffer está cheio
-    while(Q->sizeBuffer <= Q->statusBuffer){
+    while(param->buffer->sizeBuffer <= param->buffer->statusBuffer){
         printf("Fila cheia\n");
         // thread vai dormir
+        printf("Thread produtora %d foi dormir\n", param->threadID);
         pthread_cond_wait(&empty, &mutex);
     }
 
-    adicionarElem(Q, newValue);
-    printf("Produzi: %d\n", newValue);
+    adicionarElem(param->buffer, newValue);
+    printf("Thread produtora %d produziu: %d\n", param->threadID, newValue);
     
-    if(Q->statusBuffer == 1) {
+    if(param->buffer->statusBuffer == 1) {
         pthread_cond_broadcast(&fill);
         // acorda as outras threads
     }
@@ -113,20 +114,21 @@ void putBlockingQueue(BlockingQueue* Q, int newValue){
 }
 
 // consumidor -> get
-int takeBlockingQueue(BlockingQueue* Q){
+int takeBlockingQueue(threadStruct* param){
     pthread_mutex_lock(&mutex);
 
     // verifica se o buffer está vazio
-    while(Q->statusBuffer == 0){
+    while(param->buffer->statusBuffer == 0){
         printf("Fila vazia\n");
         // thread vai dormir
+        printf("Thread consumidora %d foi dormir\n", param->threadID);
         pthread_cond_wait(&fill, &mutex);
     }
 
-    int result = retirarElem(Q);
-    printf("Consumi: %d\n", result);
+    int result = retirarElem(param->buffer);
+    printf("Thread consumidora %d consumiu: %d\n", param->threadID, result);
 
-    if(Q->statusBuffer == Q->sizeBuffer - 1){
+    if(param->buffer->statusBuffer == param->buffer->sizeBuffer - 1){
         // acordar as outras threads
         pthread_cond_broadcast(&empty);
     }
@@ -144,8 +146,7 @@ void *produtor(threadStruct *param){
     // isso é feito para não faltar itens para as threads
     for(i = 0; i < numElements * threadsConsumidoras; i++){
         // +1 elemento no buffer
-        putBlockingQueue(param->buffer, (param->threadID * numElements * threadsConsumidoras) + i + 1);
-        //printf("Thread %d produziu: %d \n", param->threadID, (param->threadID * numElements * threadsConsumidoras) + i + 1);
+        putBlockingQueue(param, (param->threadID * numElements * threadsConsumidoras) + i + 1);
     }
     free(param);
     pthread_exit(NULL);
@@ -158,8 +159,7 @@ void *consumidor(threadStruct* param){
     // se consome numElements * threadsProdutoras itens
     for(i = 0; i < numElements * threadsProdutoras; i++){
         // -1 elemento no buffer
-        int aux = takeBlockingQueue(param->buffer);
-        //printf("Thread %d consumiu: %d \n", param->threadID, aux);
+        int aux = takeBlockingQueue(param);
     }  
 
     pthread_exit(NULL);
