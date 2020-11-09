@@ -54,6 +54,8 @@ int retirarElem(BlockingQueue *Q) {
     Elem *aux = Q->head;
 
     if(Q->head->prox != NULL && Q->statusBuffer == 2) {
+        // quando retirar o elemento, vai sobrar apenas um
+        // aqui vamos fazer o elemento que sobrar ser o LAST e o HEAD simultaneamente
         Q->head = Q->head->prox;
         Q->last = Q->head;
     } else if(Q->head->prox != NULL){
@@ -130,13 +132,15 @@ void *produtor(BlockingQueue* Q){
     printf("Produtor \n");
 
     int i;
+    // aux = numero do elemento (value)
+    static int aux = 0;
     // como pode ter mais de uma thread consumidora,
     // se produz numElements * threadsConsumidoras itens
     // isso é feito para não faltar itens para as threads
-    for(i = 0; i < numElements * threadsConsumidoras; i++){
+    for(i = 0; i < numElements * threadsConsumidoras; i++, aux++){
         // +1 elemento no buffer
-        putBlockingQueue(Q, i);
-        printf("Produzi: %d \n", i + 1);
+        putBlockingQueue(Q, aux);
+        printf("Produzi: %d \n", aux + 1);
     }
 
     pthread_exit(NULL);

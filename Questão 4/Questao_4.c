@@ -149,6 +149,7 @@ void threadFunctionWrapper(void* param){
   free(param);
   pthread_cond_broadcast(&threadDisponivel);
 }
+
 void despachanteFunc(){
   int i;
   pthread_mutex_lock(&mutexDespachante);
