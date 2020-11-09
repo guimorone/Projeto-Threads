@@ -2,15 +2,14 @@
 #include <stdlib.h> 
 #include <pthread.h>
 
-// tamanho do buffer -> tamanho máximo da FILA
-// numElements -> número de elementos no total
+//Tamanho do buffer -> tamanho máximo da fila.
+//numElements -> número de elementos no total.
 int threadsProdutoras, threadsConsumidoras, numElements;
 
-// empty -> fila vazia, fill -> buffer cheio
+//empty -> fila vazia, fill -> buffer cheio.
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t empty = PTHREAD_COND_INITIALIZER;
 pthread_cond_t fill = PTHREAD_COND_INITIALIZER;
-
 
 typedef struct elem{
    int value;
@@ -22,37 +21,42 @@ typedef struct blockingQueue{
    Elem *head,*last;
 } BlockingQueue;
 
+//Utilizada para empacotar os dados passados como argumento para
+//as funções de criação das threads produtoras/consumidoras.
 typedef struct threadStruct{
     BlockingQueue *buffer;
     int threadID;
 } threadStruct;
 
+//Adiciona elemento ao final da fila.
 void adicionarElem(BlockingQueue *Q, int v) {
-    // adicionar elem ao final da fila
 
     Elem *aux = (Elem *) malloc(sizeof(Elem));
     aux->value = v;
     aux->prox = NULL;
 
-    // primeiro elemento da fila
+    //Se a fila estiver vazia, o elemento é o primeiro da fila.
     if(Q->statusBuffer == 0){
         Q->head = aux;
         Q->last = aux;
-    } else {
-        // O elemento que antes era o último agora vai apontar para o NOVO último (aux)
+    } 
+    else {
+
+        //O elemento que antes era o último agora vai apontar para o novo último aux.
         Q->last->prox = aux;
-        // aux vira o ultimo elemento
+
+        //Aux vira o ultimo elemento.
         Q->last = aux;
     }
 
     Q->statusBuffer++;
 }
 
-// retira o primeiro elemento da fila
+//Retira o primeiro elemento da fila.
 int retirarElem(BlockingQueue *Q) {
     if(Q->statusBuffer == 0){
-        // buffer vazio
-        // isso vai ser checado dentro do takeBlockingQueue já
+        //Buffer vazio
+        //Isso vai ser checado dentro do takeBlockingQueue já.
         return -1;
     }
 
@@ -60,13 +64,19 @@ int retirarElem(BlockingQueue *Q) {
     Elem *aux = Q->head;
 
     if(Q->head->prox != NULL && Q->statusBuffer == 2) {
-        // quando retirar o elemento, vai sobrar apenas um
-        // aqui vamos fazer o elemento que sobrar ser o LAST e o HEAD simultaneamente
+
+        //Quando retirar o elemento, vai sobrar apenas um. Assim, fazemos
+        //o elemento que sobrar ser o last e o head simultaneamente.
         Q->head = Q->head->prox;
         Q->last = Q->head;
     } else if(Q->head->prox != NULL){
+
+        //Se o tamanho da fila for maior que 2, o primeiro é removido e head
+        //aponta para o próximo.
         Q->head = Q->head->prox;
     } else {
+
+        //Se a fila tiver 1 elemento, ela se torna vazia.
         Q->head = NULL;
         Q->last = NULL;
     }
@@ -89,48 +99,52 @@ BlockingQueue* newBlockingQueue(unsigned int SizeBuffer){
     return q;
 }
 
-// produtor -> put
+//Produtor -> put.
 void putBlockingQueue(threadStruct* param, int newValue){
     pthread_mutex_lock(&mutex);
 
-    // verifica se o buffer está cheio
+    //Verifica se o buffer está cheio.
     while(param->buffer->sizeBuffer <= param->buffer->statusBuffer){
 
-        // thread vai dormir
+        //Se estiver, thread vai dormir.
         printf("\nFila cheia!\nThread produtora %d foi dormir\n\n", param->threadID);
         pthread_cond_wait(&empty, &mutex);
     }
 
+    //Se buffer não estiver cheio, coloca elemento no fim da fila.
     adicionarElem(param->buffer, newValue);
     printf("Thread produtora %d produziu: %d\n", param->threadID, newValue);
     
     if(param->buffer->statusBuffer == 1) {
+        
+        //Acorda as outras consumidoras.
         printf("Todas as threads consumidoras foram acordadas.\n\n");
         pthread_cond_broadcast(&fill);
-        // acorda as outras threads
     }
 
     pthread_mutex_unlock(&mutex); 
     
 }
 
-// consumidor -> get
+//Consumidor -> take
 int takeBlockingQueue(threadStruct* param){
     pthread_mutex_lock(&mutex);
 
-    // verifica se o buffer está vazio
+    //Verifica se o buffer está vazio.
     while(param->buffer->statusBuffer == 0){
         
-        // thread vai dormir
+        //Se estiver, thread vai dormir.
         printf("\nFila vazia!\nThread consumidora %d foi dormir\n\n", param->threadID);
         pthread_cond_wait(&fill, &mutex);
     }
 
+    //Se buffer não estiver vazio, retira primeiro elemento da fila.
     int result = retirarElem(param->buffer);
     printf("Thread consumidora %d consumiu: %d\n", param->threadID, result);
 
     if(param->buffer->statusBuffer == param->buffer->sizeBuffer - 1){
-        // acordar as outras threads
+        
+        //Acorda as outras produtoras.
         printf("Todas as threads produtoras foram acordadas.\n\n");
         pthread_cond_broadcast(&empty);
     }
@@ -143,11 +157,12 @@ int takeBlockingQueue(threadStruct* param){
 void *produtor(threadStruct *param){
 
     int i;
-    // como pode ter mais de uma thread consumidora,
-    // se produz numElements * threadsConsumidoras itens
-    // isso é feito para não faltar itens para as threads
+
+    //Como pode ter mais de uma thread consumidora, se produz numElements * threadsConsumidoras itens.
+    //Portanto, isso é feito para não faltar itens para as threads.
     for(i = 0; i < numElements * threadsConsumidoras; i++){
-        // +1 elemento no buffer
+        
+        //+1 elemento no buffer.
         putBlockingQueue(param, (param->threadID * numElements * threadsConsumidoras) + i + 1);
     }
     free(param);
@@ -157,10 +172,11 @@ void *produtor(threadStruct *param){
 void *consumidor(threadStruct* param){
     
     int i;
-    // como pode ter mais de uma thread produtora,
-    // se consome numElements * threadsProdutoras itens
+
+    //Como pode ter mais de uma thread produtora, se consome numElements * threadsProdutoras itens.
     for(i = 0; i < numElements * threadsProdutoras; i++){
-        // -1 elemento no buffer
+        
+        //-1 elemento no buffer
         int aux = takeBlockingQueue(param);
     }  
 
@@ -190,12 +206,12 @@ int main() {
 
     BlockingQueue *fila = newBlockingQueue(tamBuffer);
 
-    // array de threads
+    //Array de threads.
     pthread_t *consumer = (pthread_t *) malloc(threadsConsumidoras * sizeof(pthread_t)); 
     pthread_t *producer = (pthread_t *) malloc(threadsProdutoras * sizeof(pthread_t));
 
     int j;
-    // Cria as threads produtoras
+    //Cria as threads produtoras.
     for(j = 0; j < threadsProdutoras; j++){
         threadStruct *aux = (threadStruct *) malloc(sizeof(threadStruct));
         aux->buffer = fila;
@@ -203,7 +219,7 @@ int main() {
         pthread_create(&producer[j], NULL, (void *) produtor, (void *) aux);
     } 
 
-    // Cria as threads consumidoras
+    // ria as threads consumidoras.
     for(j = 0; j < threadsConsumidoras; j++){
         threadStruct *aux = (threadStruct *) malloc(sizeof(threadStruct));
         aux->buffer = fila;
@@ -211,8 +227,7 @@ int main() {
         pthread_create(&consumer[j], NULL, (void *) consumidor, (void *) aux);
     }
 
-    // Esperar o término de execução das threads
-
+    //Esperar o término de execução das threads
     for(j = 0; j < threadsProdutoras; j++){
         pthread_join(producer[j], NULL);
     } 
@@ -221,8 +236,7 @@ int main() {
         pthread_join(consumer[j], NULL);
     } 
 
-    // Libera memória
-
+    //Libera memória alocada dinamicamente.
     free(consumer);
     free(producer);
     clear(fila);
