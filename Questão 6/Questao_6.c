@@ -11,6 +11,7 @@ pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t empty = PTHREAD_COND_INITIALIZER;
 pthread_cond_t fill = PTHREAD_COND_INITIALIZER;
 
+
 typedef struct elem{
    int value;
    struct elem *prox;
@@ -20,6 +21,11 @@ typedef struct blockingQueue{
    unsigned int sizeBuffer, statusBuffer;
    Elem *head,*last;
 } BlockingQueue;
+
+typedef struct productFunc{
+    BlockingQueue *buffer;
+    int threadID;
+} ProductFunc;
 
 void adicionarElem(BlockingQueue *Q, int v) {
     // adicionar elem ao final da fila
@@ -128,26 +134,22 @@ int takeBlockingQueue(BlockingQueue* Q){
     return result;
 }
 
-void *produtor(BlockingQueue* Q){
-    printf("Produtor \n");
+void *produtor(ProductFunc *param){
 
     int i;
-    // aux = numero do elemento (value)
-    static int aux = 0;
     // como pode ter mais de uma thread consumidora,
     // se produz numElements * threadsConsumidoras itens
     // isso é feito para não faltar itens para as threads
-    for(i = 0; i < numElements * threadsConsumidoras; i++, aux++){
+    for(i = 0; i < numElements * threadsConsumidoras; i++){
         // +1 elemento no buffer
-        putBlockingQueue(Q, aux);
-        printf("Produzi: %d \n", aux + 1);
+        putBlockingQueue(param->buffer, (param->threadID * numElements * threadsConsumidoras) + i);
+        printf("Produzi: %d \n", (param->threadID * numElements * threadsConsumidoras) + i + 1);
     }
-
+    free(param);
     pthread_exit(NULL);
 }
 
 void *consumidor(BlockingQueue* Q){
-    printf("Consumidor \n");
     
     int i;
     // como pode ter mais de uma thread produtora,
@@ -186,7 +188,10 @@ int main() {
     int j;
     // Cria as threads produtoras
     for(j = 0; j < threadsProdutoras; j++){
-        pthread_create(&producer[j], NULL, (void *) produtor, (void *) fila);
+        ProductFunc *aux = (ProductFunc *) malloc(sizeof(ProductFunc));
+        aux->buffer = fila;
+        aux->threadID = j;
+        pthread_create(&producer[j], NULL, (void *) produtor, (void *) aux);
     } 
 
     // Cria as threads consumidoras
