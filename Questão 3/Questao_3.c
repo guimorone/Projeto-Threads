@@ -85,7 +85,7 @@ int main() {
 
     n1 = strlen(s1);
     n2 = strlen(s2);
-    
+
     int p, var=1;
     
     //Aqui é estabelecido o valor 'p' correspondente à quantidade de threads a serem criadas,
@@ -115,8 +115,6 @@ int main() {
         vetMsg[i].sub = (char *) malloc(strlen(sub));
         strcpy(vetMsg[i].s2, s2);
         strcpy(vetMsg[i].sub, sub);
-        printf("vetmsg[%d].sub = %s\n", i, vetMsg[i].sub);
-        printf("vetmsg[%d].s2 = %s\n", i, vetMsg[i].s2);
 
         int rc = pthread_create(&threads[i], NULL, func, (void *) &vetMsg[i]);
         if(rc) printf("ERRO na criacao da thread[%d], codigo de retorno: %d\n", i, rc);
@@ -129,7 +127,6 @@ int main() {
     //O join é utilizado para que a main aguarde a finalização da execução das 'p' threads criadas.
     for(i=0; i<p; i++) {
         pthread_join(threads[i], NULL);
-        printf("esperando a thread[%d]\n", i);
     }
     
     //Desse modo, é garantida a corretude do valor final de 'count'. 
