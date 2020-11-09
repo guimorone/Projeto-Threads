@@ -28,7 +28,7 @@ void *func(void *cmd) {
     int tamStr = strlen(command.sub);
 
     int i, j=0, k;
-    
+
     //Cálculo das ocorrências.
     for(i=0; i<tamStr; i++) {
         if(command.sub[i] == command.s2[0]) {
@@ -40,8 +40,9 @@ void *func(void *cmd) {
                     break;
                 }
             }
+            printf("%d\n", k);
             //Se ocorre, incrementa 'count' respeitando a exclusão mútua.
-            if(ok) {
+            if(ok && k == tams2) {
                 pthread_mutex_lock(&mutex);
                 count++;
                 pthread_mutex_unlock(&mutex);
@@ -98,22 +99,16 @@ int main() {
     //argumento juntamente com a string s2. De acordo com a política da questão, s1 é
     //dividida em 'p' pedaços de tamanho 'n1/p'.
     for(i=0; i<p; i++) {
-        char *sub;
-        
-        //s1 é particionada. Seu i-ésimo pedaço é guardado na variável sub.
-        if(i == p-1) {
-            sub = substr(s1, j, n1-j);
-        }
-        else {
-            sub = substr(s1, j, n1/p);
-        }
-        
+        char *sub = substr(s1, j, n1/p);
+
         //Os dados são passados para a i-ésima posição do array de 'msg', que será
         //passado como argumento na criação da thread. 
         vetMsg[i].s2 = (char *) malloc(n2);
         vetMsg[i].sub = (char *) malloc(strlen(sub));
         strcpy(vetMsg[i].s2, s2);
         strcpy(vetMsg[i].sub, sub);
+        printf("vetmsg[%d].sub = %s\n", i, vetMsg[i].sub);
+        printf("vetmsg[%d].s2 = %s\n", i, vetMsg[i].s2);
 
         int rc = pthread_create(&threads[i], NULL, func, (void *) &vetMsg[i]);
         if(rc) printf("ERRO na criacao da thread[%d], codigo de retorno: %d\n", i, rc);

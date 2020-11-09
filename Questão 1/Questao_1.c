@@ -43,13 +43,20 @@ int main()
   
     /* Criam-se n threads de acordo com a função inc, cujo parâmetro
     corresponde ao respectivo threadsId[i].*/
-    for (i = 0; i < n; i++) {
+    int ok=1;
+    for (i = 0; i < n && ok == 1; i++) {
         threadsId[i] = i;
         int rc = pthread_create(&threads[i], NULL, inc, (void *) &threadsId[i]);
         if(rc) {
             printf("ERRO na criação da thread[%d], código de retorno: %d\n", threadsId[i], rc);
             exit(-1);
         }
+
+        //Caso o valor representado por MAXNUM seja atingido, não há necessidade de criar
+        //mais threads. Assim, atualizamos o valor de 'ok' para que haja interrupção no loop.
+        pthread_mutex_lock(&mymutex);
+        if(count >= MAXNUM) ok = 0;
+        pthread_mutex_unlock(&mymutex);
     }
 
     //Uso do join para esperar a finalização da execução de todas as threads criadas.

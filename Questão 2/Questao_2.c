@@ -4,9 +4,9 @@
 #include <string.h>
 #include <time.h>  
 
-char colores[][7] = {"\e[40m", "\e[41m",
-"\e[42m", "\e[43m", "\e[44m", "\e[45m", "\e[46m",
-"\e[47m"};
+char colores[8][10] = {"\e[40m", "\e[41m",
+"\e[42m", "\e[43m", "\e[44m", "\e[45m", "\e[46m"};
+char reset[10] = "\e[47m";
 
 //Struct que representa a tela a ser atualizada pelas threads.
 typedef struct {
@@ -28,23 +28,23 @@ msg *tela;
 cmd *filenamesPerThread;
 
 //Função que executa delay.
-void delay(int number_of_seconds) { 
-    int milli_seconds = 1000 * number_of_seconds; 
-    clock_t start_time = clock(); 
+void delay(int mili) { 
+    int milliseg = 1000 * mili; 
+    clock_t start = clock(); 
   
-    while (clock() < start_time + milli_seconds); 
+    while (clock() < start + milliseg); 
 } 
 
-void printLinhaTela(int index) {
-    printf("%d", tela[index].linha);
-    printf("%s", colores[index]);        
-    printf("%s\n", tela[index].text);
-    printf("\e[0m");
+void printTela() {
+    system("clear");
+    int i;
+    for(i=0; i<L; i++) {
+        printf("%s %s %s\n", colores[i], tela[i].text, reset);
+    }
 }
 
 //Função passada na criação das threads.
 void *func(void *command) {
-    delay(2000);
     cmd filesArr = *((cmd *)command);
     int k;
 
@@ -68,7 +68,8 @@ void *func(void *command) {
         while(fscanf(arq, "%d %[^\n]", &linha, text) != EOF) {
             dados = (msg *) realloc(dados, (1+size)*sizeof(msg));
             if(linha < 1 || linha > L) {
-                printf("Valor para linha invalido. Esta sera desconsiderada.\n");
+                system("clear");
+                printf("Valor para linha = %d invalido. Esta sera desconsiderada.\n", linha);
             }
             else {
                 dados[size].linha = linha;
@@ -86,19 +87,19 @@ void *func(void *command) {
         int i;
         for(i=0; i<size; i++) {
             pthread_mutex_lock(&mutexes[(dados[i].linha)-1]);
-            tela[(dados[i].linha)-1].text = (char *) malloc(strlen(dados[i].text));
+            tela[(dados[i].linha)-1].text = (char *) realloc(tela[(dados[i].linha)-1].text, strlen(dados[i].text)+1);
+            
+            //Dados copiados para uma linha da tela.
             strcpy(tela[(dados[i].linha)-1].text, dados[i].text);
 
+            //É utilizado o 'printMutex' na hora de printar a tela para que não haja confusão, uma vez que, sem esse
+            //mutex, uma thread pode dormir durante a execução do print e a outra que entrar em execução pode
+            //acabar embaralhando a tela com as informações.
             pthread_mutex_lock(&printMutex);
-            int j;
-            for(j=0; j<L; j++) {
-              printLinhaTela(j);
-            }
-            printf("\n");
+            printTela();
             pthread_mutex_unlock(&printMutex);
 
             delay(3000);
-            system("clear");
             pthread_mutex_unlock(&mutexes[(dados[i].linha)-1]);
 
         }
@@ -121,7 +122,9 @@ void init(int L, int qtdArq, int qtdThreads) {
     
     //Aqui é feito uma divisão, entre as threads, de todos os arquivos que serão analisados.
     //De acordo com essa política, a última thread sempre ficará com um maior número de arquivos
-    //para analisar. Isso ocorre se qtdArq % qtdThreads != 0.
+    //para analisar. Isso ocorre se qtdArq % qtdThreads != 0. Essa divisão é salva em 'filenamesPerThread'.
+    //Essa variável é um array de estruturas do tipo 'cmd', onde cada uma dessas structs será passada
+    //como argumento de 'func' na criação das threads.
     for(i=0; i<qtdThreads; i++) {
         if(i+1 == qtdThreads) {
             int tam = sizeFilePerThread + (qtdArq%qtdThreads);
@@ -150,9 +153,9 @@ void init(int L, int qtdArq, int qtdThreads) {
         tela[i].linha = i;
         tela[i].text = (char *) malloc(6);
         strcpy(tela[i].text, "undef");
-        printLinhaTela(i);
         pthread_mutex_init(&mutexes[i], NULL);
-    }    
+    }
+    printTela();
 }
 
 
@@ -196,13 +199,7 @@ int main() {
         pthread_join(threads[i], NULL);
     }
     
-    //Printa pela última vez a tela já finalizada com todas as alterações.
-    for(i=0; i < L; i++) {
-        printf("%d", tela[i].linha);
-        printf("%s", colores[i]);        
-        printf("%s\n", tela[i].text);
-        printf("\e[0m");
-    }
+    printTela();
 
     //Liberação da memória alocada dinamicamente ao longo do código.
     free(threads);
