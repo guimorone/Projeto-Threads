@@ -27,14 +27,6 @@ int L;
 msg *tela;
 cmd *filenamesPerThread;
 
-//Função que executa delay.
-void delay(int mili) { 
-    int milliseg = 1000 * mili; 
-    clock_t start = clock(); 
-  
-    while (clock() < start + milliseg); 
-} 
-
 void printTela() {
     system("clear");
     int i;
@@ -67,11 +59,7 @@ void *func(void *command) {
         //arquivo em questão.
         while(fscanf(arq, "%d %[^\n]", &linha, text) != EOF) {
             dados = (msg *) realloc(dados, (1+size)*sizeof(msg));
-            if(linha < 1 || linha > L) {
-                system("clear");
-                printf("Valor para linha = %d invalido. Esta sera desconsiderada.\n", linha);
-            }
-            else {
+            if(!(linha < 1 || linha > L)) {
                 dados[size].linha = linha;
                 dados[size].text = (char *) malloc(strlen(text));
                 strcpy(dados[size].text, text);
@@ -79,7 +67,7 @@ void *func(void *command) {
             }
         }
         fclose(arq);
-
+        
         //Atualização da tela de acordo com a quantidade de alterações (size) calculadas para cada arquivo.
         //Essa atualização é feita de acordo com os dados lidos de cada arquivo e respeita a exclusão mútua
         //por linha. A linha correspondente é printada após a alteração e é adicionado um delay de 3 segundos
@@ -99,7 +87,7 @@ void *func(void *command) {
             printTela();
             pthread_mutex_unlock(&printMutex);
 
-            delay(3000);
+            system("sleep 03"); //Delay.
             pthread_mutex_unlock(&mutexes[(dados[i].linha)-1]);
 
         }
